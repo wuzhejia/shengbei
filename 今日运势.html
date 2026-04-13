@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>今日运势</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --surface: rgba(255,255,255,0.08);
+  --border: rgba(212,179,255,0.25);
+  --text: #f5ecff;
+  --muted: rgba(245,236,255,0.6);
+  --accent: #d4b3ff;
+  --accent-pink: #ffa8dd;
+  --accent-cyan: #9aeaff;
+  --accent-gold: #ffd89a;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(ellipse 90% 60% at 50% 0%,   rgba(180,120,255,0.28) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 55% at 15% 100%, rgba(255,140,210,0.18) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 55% at 85% 100%, rgba(130,180,255,0.18) 0%, transparent 55%),
+    linear-gradient(180deg, #2a1552 0%, #1c0a3a 45%, #140628 100%);
+  background-attachment: fixed;
+  overflow-x: hidden;
+}
+
+#starsCanvas {
+  position: fixed; top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0; pointer-events: none;
+}
+
+#app { position: relative; z-index: 1; min-height: 100vh; }
+
+/* ---- Screens ---- */
+.screen {
+  display: none; min-height: 100vh;
+  flex-direction: column; align-items: center; justify-content: center;
+  padding: 32px 20px; text-align: center;
+}
+.screen.active { display: flex; }
+
+/* ---- Typography ---- */
+.step-label {
+  font-size: 0.72rem; letter-spacing: 0.3em; color: var(--muted);
+  margin-bottom: 18px;
+}
+h2 { font-size: clamp(1.35rem, 4vw, 1.85rem); letter-spacing: 0.05em; margin-bottom: 6px; }
+.sub-label { font-size: 0.84rem; color: var(--muted); margin-bottom: 8px; }
+
+/* ---- Buttons ---- */
+.btn {
+  display: inline-block; padding: 13px 38px;
+  border: 1.5px solid var(--accent); border-radius: 40px;
+  background: rgba(212,179,255,0.08); color: var(--accent);
+  font-size: 0.95rem; letter-spacing: 0.14em;
+  cursor: pointer; transition: all 0.28s; font-family: inherit;
+  margin-top: 8px;
+  backdrop-filter: blur(4px);
+}
+.btn:hover {
+  background: var(--accent); color: #1a0a35;
+  box-shadow: 0 0 28px rgba(212,179,255,0.55);
+  transform: translateY(-1px);
+}
+.btn:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
+.btn-ghost { border-color: rgba(255,255,255,0.22); color: rgba(255,255,255,0.45); background: transparent; }
+.btn-ghost:hover { background: rgba(255,255,255,0.08); color: var(--text); box-shadow: none; }
+
+/* ---- Back button ---- */
+#backBtn {
+  position: fixed; top: 18px; left: 18px; z-index: 20;
+  font-size: 0.8rem; color: var(--muted); background: none; border: none;
+  cursor: pointer; font-family: inherit; letter-spacing: 0.1em;
+  display: none; transition: color 0.2s;
+}
+#backBtn:hover { color: var(--text); }
+
+/* ================================================================
+   WELCOME SCREEN – Zodiac Wheel Logo
+================================================================ */
+.logo-wheel {
+  width: 240px; height: 240px;
+  position: relative;
+  margin: 0 auto 24px;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+}
+
+/* Soft radial glow behind wheel */
+.logo-wheel::before {
+  content: '';
+  position: absolute;
+  inset: 20px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(212,179,255,0.18) 0%, transparent 60%),
+    radial-gradient(circle at 50% 40%, rgba(255,200,150,0.1) 0%, transparent 50%);
+  pointer-events: none;
+  animation: pulse-glow 4s ease-in-out infinite;
+}
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.05); }
+}
+
+/* Thin orbit ring */
+.logo-wheel::after {
+  content: '';
+  position: absolute;
+  inset: 28px;
+  border-radius: 50%;
+  border: 1px dashed rgba(212,179,255,0.25);
+  pointer-events: none;
+}
+
+.logo-ring { position: absolute; inset: 0; }
+
+.zs {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 34px; height: 34px;
+  margin: -17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  color: var(--accent);
+  text-shadow:
+    0 0 10px rgba(212,179,255,0.8),
+    0 0 20px rgba(212,179,255,0.4);
+  transform:
+    rotate(calc(var(--i) * 30deg))
+    translate(0, -102px)
+    rotate(calc(var(--i) * -30deg));
+  animation: zs-twinkle 3.6s ease-in-out infinite;
+  animation-delay: calc(var(--i) * 0.2s);
+}
+@keyframes zs-twinkle {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
+/* Center cute jiaobei pair */
+.logo-center {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 116px; height: 116px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 0 16px rgba(255,200,150,0.4));
+  animation: center-bob 5s ease-in-out infinite;
+}
+@keyframes center-bob {
+  0%, 100% { transform: translate(-50%, -50%) translateY(0); }
+  50%      { transform: translate(-50%, -50%) translateY(-4px); }
+}
+.logo-center svg { width: 100%; height: 100%; overflow: visible; }
+
+.welcome-title {
+  font-size: clamp(2.1rem, 6vw, 2.9rem);
+  letter-spacing: 0.22em; margin-bottom: 8px;
+  background: linear-gradient(135deg, #fff2c4 0%, #ffc7f0 50%, #b8e6ff 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.welcome-en {
+  font-size: 0.74rem; letter-spacing: 0.4em;
+  color: var(--muted); margin-bottom: 42px;
+}
+.welcome-note {
+  font-size: 0.74rem; color: var(--muted);
+  margin-top: 36px; letter-spacing: 0.14em;
+}
+
+/* ================================================================
+   SELECTION GRIDS
+================================================================ */
+.sel-grid {
+  display: grid; gap: 8px;
+  width: 100%; max-width: 440px; margin: 20px 0 28px;
+}
+.zodiac-grid { grid-template-columns: repeat(4, 1fr); }
+.mbti-grid   { grid-template-columns: repeat(4, 1fr); }
+
+.sel-item {
+  padding: 11px 4px; border: 1px solid var(--border);
+  border-radius: 12px; background: var(--surface);
+  cursor: pointer; transition: all 0.22s;
+  font-size: 0.85rem; color: var(--text);
+  font-family: inherit; letter-spacing: 0.04em;
+  backdrop-filter: blur(3px);
+}
+.sel-item:hover {
+  border-color: var(--accent);
+  background: rgba(212,179,255,0.12);
+}
+.sel-item.selected {
+  border-color: var(--accent);
+  background: rgba(212,179,255,0.22);
+  color: var(--accent);
+  box-shadow: 0 0 14px rgba(212,179,255,0.35);
+}
+
+/* ================================================================
+   JIAOBEI SCREEN – Press and Hold
+================================================================ */
+.jiaobei-area {
+  position: relative;
+  width: 260px;
+  height: 200px;
+  margin: 22px auto 10px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: grab;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 30px;
+  padding-bottom: 30px;
+}
+.jiaobei-area:active { cursor: grabbing; }
+
+/* Energy glow aura */
+.jglow {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 55%, rgba(255,225,170,0.4) 0%, transparent 55%),
+    radial-gradient(circle at 50% 55%, rgba(212,179,255,0.3) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+  filter: blur(18px);
+}
+
+/* Cupped hands (visible when pressing) */
+.jhands {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  width: 220px;
+  height: 70px;
+  transform: translateX(-50%) translateY(30px) scale(0.95);
+  opacity: 0;
+  transition: all 0.4s cubic-bezier(.2,.8,.3,1);
+  pointer-events: none;
+}
+.jhands svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3)); }
+
+/* Blocks */
+.jblock {
+  width: 64px;
+  height: 96px;
+  position: relative;
+  z-index: 2;
+  transition: transform 0.4s cubic-bezier(.25,.8,.3,1);
+  pointer-events: none;
+}
+.jblock svg { width: 100%; height: 100%; display: block; overflow: visible; }
+
+/* --- Holding state --- */
+.jiaobei-area.holding .jglow { opacity: 1; }
+.jiaobei-area.holding .jhands {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+.jiaobei-area.holding #jb1 {
+  animation: hold-a 1.9s ease-in-out infinite;
+}
+.jiaobei-area.holding #jb2 {
+  animation: hold-b 1.9s ease-in-out infinite 0.25s;
+}
+@keyframes hold-a {
+  0%, 100% { transform: translateY(-22px) rotate(-6deg); }
+  50%      { transform: translateY(-30px) rotate(-3deg); }
+}
+@keyframes hold-b {
+  0%, 100% { transform: translateY(-22px) rotate(6deg); }
+  50%      { transform: translateY(-30px) rotate(3deg); }
+}
+
+/* Floating sparkles during hold */
+.jspark {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff3c4 0%, rgba(255,200,150,0.5) 50%, transparent 100%);
+  opacity: 0;
+  pointer-events: none;
+}
+.jiaobei-area.holding .jspark {
+  animation: spark-rise 2.2s ease-out infinite;
+}
+.jspark:nth-child(1) { animation-delay: 0s;   --dx: -50px; }
+.jspark:nth-child(2) { animation-delay: 0.4s; --dx:  30px; }
+.jspark:nth-child(3) { animation-delay: 0.8s; --dx: -20px; }
+.jspark:nth-child(4) { animation-delay: 1.2s; --dx:  50px; }
+.jspark:nth-child(5) { animation-delay: 1.6s; --dx: -35px; }
+@keyframes spark-rise {
+  0%   { opacity: 0; transform: translate(-50%, 0) scale(0.5); }
+  15%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), -120px) scale(1.3); }
+}
+
+/* --- Throwing state (dynamic end rotation via CSS vars) --- */
+/* Block final rotation set via --end-a / --end-b in JS */
+@keyframes throw-a {
+  0%   { transform: translateY(-22px) rotate(-4deg); opacity: 1; }
+  15%  { transform: translateY(-120px) rotate(-280deg); opacity: 1; }
+  40%  { transform: translateY(-140px) rotate(-560deg); opacity: 1; }
+  70%  { transform: translateY(-60px) rotate(-840deg); opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateY(0) rotate(var(--end-a, -960deg)); opacity: 1; }
+}
+@keyframes throw-b {
+  0%   { transform: translateY(-22px) rotate(4deg); opacity: 1; }
+  18%  { transform: translateY(-130px) rotate(320deg); opacity: 1; }
+  42%  { transform: translateY(-150px) rotate(640deg); opacity: 1; }
+  72%  { transform: translateY(-50px) rotate(900deg); opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateY(0) rotate(var(--end-b, 1000deg)); opacity: 1; }
+}
+.jiaobei-area.throwing #jb1 {
+  animation: throw-a 1.6s cubic-bezier(.25,.1,.3,1) forwards;
+}
+.jiaobei-area.throwing #jb2 {
+  animation: throw-b 1.6s cubic-bezier(.25,.1,.3,1) forwards;
+}
+
+/* --- Settled state (after throwing animation) --- */
+.jiaobei-area.settled #jb1 {
+  transform: translateY(0) rotate(var(--end-a, 0deg));
+  transition: none;
+}
+.jiaobei-area.settled #jb2 {
+  transform: translateY(0) rotate(var(--end-b, 0deg));
+  transition: none;
+}
+
+/* Flat side indicator (lighter = 阳/flat, darker inner = 阴/curved) */
+/* We use scaleY(-1) to flip a block to show "curved up" (阴面) */
+
+/* --- Jiaobei explanation section --- */
+.jb-explain {
+  width: 100%; max-width: 360px;
+  margin: 16px auto 4px;
+  display: flex; gap: 10px; justify-content: center;
+}
+.jb-ex-item {
+  flex: 1;
+  padding: 12px 6px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid rgba(255,255,255,0.06);
+  text-align: center;
+}
+.jb-ex-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  letter-spacing: 0.08em;
+}
+.jb-ex-name.ex-sheng { color: #8ce6b0; }
+.jb-ex-name.ex-xiao  { color: var(--accent-gold); }
+.jb-ex-name.ex-yin   { color: #ffa0a0; }
+
+.jb-ex-icons {
+  display: flex; justify-content: center; gap: 6px;
+  margin-bottom: 6px; height: 38px; align-items: center;
+}
+.jb-ex-icons .mini-block {
+  width: 16px; height: 28px;
+  border-radius: 6px;
+  border: 1.5px solid #8a5a28;
+  position: relative;
+}
+.mini-block.flat {
+  background: linear-gradient(180deg, #ffe3ae, #c8884a);
+}
+.mini-block.curved {
+  background: linear-gradient(180deg, #8a5520, #5a3010);
+}
+.jb-ex-desc {
+  font-size: 0.68rem;
+  color: var(--muted);
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+}
+
+/* Hint text */
+.jb-hint {
+  font-size: 0.88rem;
+  color: var(--accent);
+  letter-spacing: 0.14em;
+  margin: 6px 0 20px;
+  opacity: 0.85;
+  transition: all 0.3s;
+  min-height: 1.4rem;
+}
+.jb-hint.pressing {
+  color: var(--accent-gold);
+  animation: hint-pulse 1.4s ease-in-out infinite;
+}
+@keyframes hint-pulse {
+  0%, 100% { opacity: 0.7; letter-spacing: 0.14em; }
+  50%      { opacity: 1;   letter-spacing: 0.18em; }
+}
+
+/* Result reveal */
+.jb-result-row {
+  min-height: 2.6rem;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 4px;
+  margin: 4px 0 12px;
+}
+.jb-name {
+  font-size: 1.55rem;
+  letter-spacing: 0.22em;
+  background: linear-gradient(135deg, var(--accent-gold) 0%, var(--accent-pink) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  opacity: 0;
+  transition: opacity 0.6s;
+}
+.jb-sub {
+  font-size: 0.8rem; color: var(--muted); letter-spacing: 0.18em;
+  opacity: 0; transition: opacity 0.6s 0.15s;
+}
+.jb-name.show, .jb-sub.show { opacity: 1; }
+
+/* ================================================================
+   RESULT SCREEN
+================================================================ */
+.result-wrap { width: 100%; max-width: 400px; }
+
+.info-chips { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 22px; }
+.chip {
+  padding: 5px 14px; border: 1px solid var(--border);
+  border-radius: 20px; font-size: 0.76rem; color: var(--muted);
+  letter-spacing: 0.1em; backdrop-filter: blur(3px);
+}
+
+.result-card {
+  border-radius: 24px; padding: 42px 30px 34px;
+  position: relative; overflow: hidden;
+  animation: fadeUp 0.7s ease both;
+  backdrop-filter: blur(6px);
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.tier-name { font-size: clamp(2.2rem, 8vw, 3.3rem); font-weight: 700; letter-spacing: 0.22em; margin-bottom: 6px; }
+.tier-en   { font-size: 0.72rem; letter-spacing: 0.38em; color: var(--muted); margin-bottom: 28px; }
+.divider   { width: 50px; height: 1.5px; margin: 0 auto 24px; border-radius: 2px; }
+.desc-text { font-size: 0.94rem; line-height: 2; text-align: left; color: #f5ecff; }
+
+/* 宜 / 忌 */
+.yi-ji {
+  margin: 20px 0 16px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  text-align: left;
+}
+.yj-row { display: flex; align-items: flex-start; gap: 10px; font-size: 0.88rem; line-height: 1.9; }
+.yj-row + .yj-row { margin-top: 10px; }
+.yj-tag {
+  flex-shrink: 0;
+  padding: 2px 10px;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  margin-top: 3px;
+}
+.yj-yi .yj-tag { background: rgba(100,210,150,0.18); color: #8ce6b0; }
+.yj-ji .yj-tag { background: rgba(255,120,120,0.16); color: #ffa0a0; }
+.yj-text { color: var(--text); }
+
+/* MBTI 专属梗 */
+.mbti-box {
+  margin: 16px 0;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border-left: 3px solid var(--accent);
+  background: rgba(212,179,255,0.06);
+  font-size: 0.88rem;
+  line-height: 1.9;
+  text-align: left;
+}
+.mbti-label {
+  font-size: 0.72rem;
+  color: var(--accent);
+  letter-spacing: 0.14em;
+  margin-bottom: 6px;
+}
+
+/* 金句 */
+.fortune-quote {
+  margin: 18px 0 0;
+  font-size: 0.95rem;
+  font-style: italic;
+  color: var(--accent-gold);
+  text-align: center;
+  letter-spacing: 0.06em;
+  line-height: 1.8;
+  opacity: 0.9;
+}
+
+/* 分享按钮 */
+.share-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 22px auto 0;
+  padding: 12px 32px;
+  border: 1.5px solid var(--border);
+  border-radius: 30px;
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 0.88rem;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.3s;
+  backdrop-filter: blur(4px);
+}
+.share-btn:hover {
+  border-color: var(--accent);
+  background: rgba(212,179,255,0.15);
+  box-shadow: 0 0 18px rgba(212,179,255,0.3);
+}
+.share-btn.copied {
+  border-color: rgba(140,230,160,0.6);
+  color: #8ce6b0;
+}
+
+.result-note { margin-top: 24px; font-size: 0.72rem; color: var(--muted); letter-spacing: 0.1em; text-align: center; }
+
+/* Tier: Bronze */
+.t-bronze .result-card {
+  border: 1.5px solid rgba(210,140,70,0.45);
+  background: linear-gradient(150deg, rgba(210,140,70,0.12), rgba(140,80,40,0.04));
+  box-shadow: 0 0 40px rgba(210,140,70,0.15);
+}
+.t-bronze .tier-name { color: #e2963d; text-shadow: 0 0 20px rgba(210,140,70,0.4); }
+.t-bronze .divider { background: #e2963d; }
+
+/* Tier: Silver */
+.t-silver .result-card {
+  border: 1.5px solid rgba(210,210,230,0.45);
+  background: linear-gradient(150deg, rgba(210,210,230,0.12), rgba(140,140,170,0.04));
+  box-shadow: 0 0 40px rgba(210,210,230,0.15);
+}
+.t-silver .tier-name { color: #e0e0ee; text-shadow: 0 0 20px rgba(210,210,230,0.5); }
+.t-silver .divider { background: #e0e0ee; }
+
+/* Tier: Gold */
+.t-gold .result-card {
+  border: 1.5px solid rgba(255,220,80,0.5);
+  background: linear-gradient(150deg, rgba(255,220,80,0.13), rgba(200,150,30,0.04));
+  box-shadow: 0 0 55px rgba(255,220,80,0.18);
+}
+.t-gold .tier-name { color: #ffdd66; text-shadow: 0 0 24px rgba(255,220,80,0.55); }
+.t-gold .divider { background: #ffdd66; }
+
+/* Tier: Diamond */
+.t-diamond .result-card {
+  border: 1.5px solid rgba(80,210,255,0.5);
+  background: linear-gradient(150deg, rgba(80,210,255,0.12), rgba(170,80,255,0.08));
+  box-shadow: 0 0 60px rgba(100,200,255,0.22);
+}
+.t-diamond .tier-name {
+  background: linear-gradient(90deg, #4fd4ff, #c070ff);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.t-diamond .divider { background: linear-gradient(90deg, #4fd4ff, #c070ff); }
+
+/* Tier: Hidden */
+.t-hidden .result-card {
+  border: 1.5px solid rgba(255,255,255,0.25);
+  background: linear-gradient(150deg, rgba(255,120,240,0.1), rgba(120,120,255,0.1));
+  box-shadow: 0 0 80px rgba(230,180,255,0.25);
+}
+.t-hidden .tier-name {
+  background: linear-gradient(90deg, #ff7beb, #ffe07a, #7be5ff, #cc9bff, #ff7beb);
+  background-size: 300%;
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  animation: holo 4s linear infinite;
+}
+@keyframes holo {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}
+.t-hidden .divider { background: linear-gradient(90deg, #ff7beb, #7be5ff); height: 2px; }
+
+/* Hidden sparkles */
+.sparkle-wrap { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+.sp {
+  position: absolute; font-size: 0.7rem; color: rgba(255,255,255,0.65);
+  animation: twinkle 2.2s ease-in-out infinite;
+}
+.sp:nth-child(2) { animation-delay: 0.6s; }
+.sp:nth-child(3) { animation-delay: 1.2s; }
+.sp:nth-child(4) { animation-delay: 1.8s; }
+@keyframes twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.5); }
+  50%      { opacity: 1; transform: scale(1.15); }
+}
+
+/* Admin removed */
+
+/* Mobile tweaks */
+@media (max-width: 360px) {
+  .zodiac-grid { grid-template-columns: repeat(3, 1fr); }
+  .sel-item { font-size: 0.75rem; padding: 8px 2px; }
+  .logo-wheel { width: 210px; height: 210px; }
+  .zs { transform: rotate(calc(var(--i) * 30deg)) translate(0, -88px) rotate(calc(var(--i) * -30deg)); }
+}
+</style>
+</head>
+<body>
+
+<canvas id="starsCanvas"></canvas>
+
+<button id="backBtn" onclick="goBack()">← 返回</button>
+
+<!-- =============================================================
+     SVG DEFINITIONS (reused cute jiaobei)
+============================================================= -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="woodA" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#ffe3ae"/>
+      <stop offset="50%" stop-color="#e5a75e"/>
+      <stop offset="100%" stop-color="#8a4e1c"/>
+    </linearGradient>
+    <linearGradient id="woodB" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#ffe3ae"/>
+      <stop offset="50%" stop-color="#e5a75e"/>
+      <stop offset="100%" stop-color="#8a4e1c"/>
+    </linearGradient>
+    <linearGradient id="skinA" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#ffe7c6"/>
+      <stop offset="100%" stop-color="#e3a76b"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div id="app">
+
+  <!-- ======================== WELCOME ======================== -->
+  <section class="screen active" id="s-welcome">
+    <div class="logo-wheel" id="logoTap">
+      <div class="logo-ring">
+        <span class="zs" style="--i:0">♈</span>
+        <span class="zs" style="--i:1">♉</span>
+        <span class="zs" style="--i:2">♊</span>
+        <span class="zs" style="--i:3">♋</span>
+        <span class="zs" style="--i:4">♌</span>
+        <span class="zs" style="--i:5">♍</span>
+        <span class="zs" style="--i:6">♎</span>
+        <span class="zs" style="--i:7">♏</span>
+        <span class="zs" style="--i:8">♐</span>
+        <span class="zs" style="--i:9">♑</span>
+        <span class="zs" style="--i:10">♒</span>
+        <span class="zs" style="--i:11">♓</span>
+      </div>
+      <div class="logo-center">
+        <svg viewBox="0 0 120 120">
+          <!-- Left jiaobei (cute cartoon) -->
+          <g transform="translate(22 30) rotate(-16 20 30)">
+            <path d="M20 4 Q6 5 4 24 Q3 52 20 58 Q37 52 36 24 Q34 5 20 4 Z"
+                  fill="url(#woodA)" stroke="#6b3f14" stroke-width="2" stroke-linejoin="round"/>
+            <ellipse cx="14" cy="22" rx="4" ry="9" fill="rgba(255,255,255,0.55)"/>
+            <ellipse cx="20" cy="40" rx="10" ry="14" fill="rgba(0,0,0,0.08)"/>
+          </g>
+          <!-- Right jiaobei -->
+          <g transform="translate(62 38) rotate(20 20 30)">
+            <path d="M20 4 Q6 5 4 24 Q3 52 20 58 Q37 52 36 24 Q34 5 20 4 Z"
+                  fill="url(#woodB)" stroke="#6b3f14" stroke-width="2" stroke-linejoin="round"/>
+            <ellipse cx="14" cy="22" rx="4" ry="9" fill="rgba(255,255,255,0.55)"/>
+            <ellipse cx="20" cy="40" rx="10" ry="14" fill="rgba(0,0,0,0.08)"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+    <h1 class="welcome-title">今日运势</h1>
+    <p class="welcome-en">FORTUNE OF THE DAY</p>
+    <button class="btn" onclick="startFlow()">开始占卜</button>
+    <p class="welcome-note">每日一次 · 由星辰与珓杯共同决定</p>
+    <p class="welcome-note" style="margin-top:12px;opacity:0.35;font-size:0.68rem;">本站内容仅供娱乐消遣，请勿当真</p>
+  </section>
+
+  <!-- ======================== ZODIAC ======================== -->
+  <section class="screen" id="s-zodiac">
+    <p class="step-label">STEP 1 · 3</p>
+    <h2>选择你的星座</h2>
+    <p class="sub-label">先天之力</p>
+    <div class="sel-grid zodiac-grid" id="zodiacGrid"></div>
+    <button class="btn" id="zodiacNext" onclick="goToMBTI()" disabled>下一步</button>
+  </section>
+
+  <!-- ======================== MBTI ======================== -->
+  <section class="screen" id="s-mbti">
+    <p class="step-label">STEP 2 · 3</p>
+    <h2>选择你的 MBTI</h2>
+    <p class="sub-label">后天之性</p>
+    <div class="sel-grid mbti-grid" id="mbtiGrid"></div>
+    <button class="btn" id="mbtiNext" onclick="goToJiaobei()" disabled>下一步</button>
+  </section>
+
+  <!-- ======================== JIAOBEI ======================== -->
+  <section class="screen" id="s-jiaobei">
+    <p class="step-label">STEP 3 · 3</p>
+    <h2>掷珓杯</h2>
+    <p class="sub-label">请求神明指引今日运势</p>
+
+    <div class="jiaobei-area" id="jiaobeiArea">
+      <!-- Soft glow aura -->
+      <div class="jglow"></div>
+
+      <!-- Floating sparkles (visible only while holding) -->
+      <div class="jspark" style="top:40%;"></div>
+      <div class="jspark" style="top:45%;"></div>
+      <div class="jspark" style="top:50%;"></div>
+      <div class="jspark" style="top:42%;"></div>
+      <div class="jspark" style="top:48%;"></div>
+
+      <!-- Cupped hands (cute cartoon) -->
+      <div class="jhands">
+        <svg viewBox="0 0 220 70">
+          <!-- Left palm -->
+          <path d="M8 30 Q6 14 22 10 Q42 4 62 10 Q88 18 95 38 Q98 52 85 60 Q55 68 28 58 Q8 50 8 30 Z"
+                fill="url(#skinA)" stroke="#8f5120" stroke-width="2.2" stroke-linejoin="round"/>
+          <!-- Soft palm highlight -->
+          <ellipse cx="45" cy="26" rx="20" ry="6" fill="rgba(255,255,255,0.35)"/>
+          <!-- Right palm -->
+          <path d="M212 30 Q214 14 198 10 Q178 4 158 10 Q132 18 125 38 Q122 52 135 60 Q165 68 192 58 Q212 50 212 30 Z"
+                fill="url(#skinA)" stroke="#8f5120" stroke-width="2.2" stroke-linejoin="round"/>
+          <ellipse cx="175" cy="26" rx="20" ry="6" fill="rgba(255,255,255,0.35)"/>
+        </svg>
+      </div>
+
+      <!-- Block A: top half = flat/light (阳面), bottom half = curved/dark (阴面) -->
+      <div class="jblock" id="jb1">
+        <svg viewBox="0 0 70 100">
+          <!-- Full body shape -->
+          <path d="M35 4 Q10 6 7 28 Q4 60 16 82 Q26 94 35 94 Q44 94 54 82 Q66 60 63 28 Q60 6 35 4 Z"
+                fill="url(#woodA)" stroke="#6b3f14" stroke-width="2.5" stroke-linejoin="round"/>
+          <!-- Bottom half darker (curved/阴面 — visible when flipped) -->
+          <clipPath id="bottomA"><rect x="0" y="50" width="70" height="50"/></clipPath>
+          <path d="M35 4 Q10 6 7 28 Q4 60 16 82 Q26 94 35 94 Q44 94 54 82 Q66 60 63 28 Q60 6 35 4 Z"
+                fill="rgba(0,0,0,0.25)" clip-path="url(#bottomA)"/>
+          <!-- Subtle dividing line in middle -->
+          <line x1="12" y1="50" x2="58" y2="50" stroke="rgba(107,63,20,0.4)" stroke-width="1.5" stroke-dasharray="3,3"/>
+          <!-- Top: light/flat 阳面 shine -->
+          <ellipse cx="22" cy="24" rx="5" ry="10" fill="rgba(255,255,255,0.55)"/>
+          <circle cx="28" cy="14" r="2.5" fill="rgba(255,255,255,0.7)"/>
+          <!-- Bottom: curved shadow feel -->
+          <ellipse cx="35" cy="72" rx="14" ry="12" fill="rgba(0,0,0,0.1)"/>
+          <!-- Tiny labels -->
+          <text x="35" y="34" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="9" font-family="sans-serif">阳</text>
+          <text x="35" y="74" text-anchor="middle" fill="rgba(255,200,150,0.45)" font-size="9" font-family="sans-serif">阴</text>
+        </svg>
+      </div>
+
+      <!-- Block B: same design -->
+      <div class="jblock" id="jb2">
+        <svg viewBox="0 0 70 100">
+          <path d="M35 4 Q10 6 7 28 Q4 60 16 82 Q26 94 35 94 Q44 94 54 82 Q66 60 63 28 Q60 6 35 4 Z"
+                fill="url(#woodB)" stroke="#6b3f14" stroke-width="2.5" stroke-linejoin="round"/>
+          <clipPath id="bottomB"><rect x="0" y="50" width="70" height="50"/></clipPath>
+          <path d="M35 4 Q10 6 7 28 Q4 60 16 82 Q26 94 35 94 Q44 94 54 82 Q66 60 63 28 Q60 6 35 4 Z"
+                fill="rgba(0,0,0,0.25)" clip-path="url(#bottomB)"/>
+          <line x1="12" y1="50" x2="58" y2="50" stroke="rgba(107,63,20,0.4)" stroke-width="1.5" stroke-dasharray="3,3"/>
+          <ellipse cx="22" cy="24" rx="5" ry="10" fill="rgba(255,255,255,0.55)"/>
+          <circle cx="28" cy="14" r="2.5" fill="rgba(255,255,255,0.7)"/>
+          <ellipse cx="35" cy="72" rx="14" ry="12" fill="rgba(0,0,0,0.1)"/>
+          <text x="35" y="34" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="9" font-family="sans-serif">阳</text>
+          <text x="35" y="74" text-anchor="middle" fill="rgba(255,200,150,0.45)" font-size="9" font-family="sans-serif">阴</text>
+        </svg>
+      </div>
+    </div>
+
+    <p class="jb-hint" id="jbHint">长按珓杯祈愿 · 松手揭晓结果</p>
+
+    <div class="jb-result-row">
+      <div class="jb-name" id="jbName">—</div>
+      <div class="jb-sub"  id="jbSub"></div>
+    </div>
+
+    <!-- Jiaobei explanation -->
+    <div class="jb-explain" id="jbExplain">
+      <div class="jb-ex-item">
+        <div class="jb-ex-name ex-sheng">圣杯</div>
+        <div class="jb-ex-icons">
+          <div class="mini-block flat"></div>
+          <div class="mini-block curved"></div>
+        </div>
+        <div class="jb-ex-desc">一平一凸<br/>神明允许 · 吉</div>
+      </div>
+      <div class="jb-ex-item">
+        <div class="jb-ex-name ex-xiao">笑杯</div>
+        <div class="jb-ex-icons">
+          <div class="mini-block flat"></div>
+          <div class="mini-block flat"></div>
+        </div>
+        <div class="jb-ex-desc">两面皆平<br/>神明笑笑 · 平</div>
+      </div>
+      <div class="jb-ex-item">
+        <div class="jb-ex-name ex-yin">阴杯</div>
+        <div class="jb-ex-icons">
+          <div class="mini-block curved"></div>
+          <div class="mini-block curved"></div>
+        </div>
+        <div class="jb-ex-desc">两面皆凸<br/>神明否定 · 凶</div>
+      </div>
+    </div>
+
+    <p style="font-size:0.72rem;color:var(--muted);margin-top:10px;letter-spacing:0.12em;">
+      每天只有一次机会
+    </p>
+  </section>
+
+  <!-- ======================== RESULT ======================== -->
+  <section class="screen" id="s-result">
+    <div class="result-wrap" id="resultContent"></div>
+  </section>
+
+  <!-- Admin removed: scores are now auto-generated weekly -->
+
+</div>
+
+<script>
+/* ============================================================
+   CONSTANTS & CONTENT
+============================================================ */
+
+const ZODIACS = ['白羊座','金牛座','双子座','巨蟹座','狮子座','处女座',
+                 '天秤座','天蝎座','射手座','摩羯座','水瓶座','双鱼座'];
+
+const MBTIS = ['INTJ','INTP','ENTJ','ENTP',
+               'INFJ','INFP','ENFJ','ENFP',
+               'ISTJ','ISFJ','ESTJ','ESFJ',
+               'ISTP','ISFP','ESTP','ESFP'];
+
+const JIAOBEI = [
+  { name:'圣杯', coeff:1.1, sub:'吉 · 顺势而行'   },
+  { name:'笑杯', coeff:1.0, sub:'平 · 随缘而定'   },
+  { name:'阴杯', coeff:0.9, sub:'凶 · 谨慎为上'   }
+];
+
+const TIER_INFO = {
+  bronze:  { name:'青铜',   en:'△  BRONZE',  cls:'t-bronze'  },
+  silver:  { name:'白银',   en:'○  SILVER',  cls:'t-silver'  },
+  gold:    { name:'黄金',   en:'◎  GOLD',    cls:'t-gold'    },
+  diamond: { name:'钻石',   en:'◇  DIAMOND', cls:'t-diamond' },
+  hidden:  { name:'隐藏款', en:'✦  HIDDEN',  cls:'t-hidden'  }
+};
+
+const TIER_DESC = {
+  bronze:
+    '能量几乎为零。今天的你，是薛定谔的社畜——在摸鱼和崩溃之间反复横跳。别逞强，活着就很了不起。',
+  silver:
+    '运势微妙，做什么都差一口气。今天适合当一个安静的NPC，别抢主线剧情，低调猥琐发育就好。',
+  gold:
+    '中规中矩的一天，不好不坏。就像食堂的饭——能吃，也就是能吃。但稳住别浪，赢面比你想的大。',
+  diamond_low:
+    '今天运势拉满，做什么都顺，说什么都对。宇宙给你开了buff，别问为什么——冲就完事了。',
+  diamond_high:
+    '运势爆表，宇宙今天给你开了VIP通道。平时不敢做的事，今天做了大概率能成。',
+  hidden:
+    '恭喜触发隐藏款！这是SSR级别的运势，一年难出几次。今天你自带主角光环，请做点配得上这运气的事。'
+};
+
+const YI_JI = {
+  bronze: [
+    { yi:['带薪摸鱼','假装信号不好','点杯贵的奶茶犒劳自己'], ji:['主动揽活','帮同事背锅','打开花呗'] },
+    { yi:['已读不回','原地躺平','吃碳水不算卡路里'], ji:['跟人讲道理','看银行余额','立flag'] },
+    { yi:['请假','刷短视频到手酸','早睡'], ji:['改简历','相亲','回复「收到」'] }
+  ],
+  silver: [
+    { yi:['按时下班','独自吃饭','听歌发呆'], ji:['网购','回复「我可以」','熬夜'] },
+    { yi:['整理桌面','喝热水','遛弯'], ji:['做重大决定','发语音','翻旧账'] },
+    { yi:['追剧','叫外卖','屏蔽朋友圈'], ji:['表态站队','群发消息','借钱给别人'] }
+  ],
+  gold: [
+    { yi:['推进正事','回消息','约老朋友'], ji:['网购超过三位数','跟前任聊天'] },
+    { yi:['打扫房间','提交方案','健身'], ji:['冲动消费','说「随便」'] },
+    { yi:['学新技能','好好吃饭','做计划'], ji:['跟客服吵架','看前任朋友圈'] }
+  ],
+  diamond: [
+    { yi:['谈加薪','表白','大胆做决定'], ji:['低调行事（今天不需要低调）','说「算了吧」'] },
+    { yi:['面试','发朋友圈','大胆开口'], ji:['犹豫不决','等下一次机会（就是现在）'] },
+    { yi:['投简历','请客吃饭','买彩票'], ji:['怂','把好运气攒着不用'] }
+  ],
+  hidden: [
+    { yi:['做任何你想做的事','相信直觉','全力以赴'], ji:['浪费今天','假装普通'] },
+    { yi:['梦想清单挑一个去做','all in','告白'], ji:['犹豫','说「明天再说」'] }
+  ]
+};
+
+const QUOTES = {
+  low: [
+    '今天的你，只需要活着就很了不起。',
+    '躺平是战略性休息，不是认输。',
+    '宇宙暂时欠你的，会找机会还的。',
+    '低谷的意义是——让你知道哪里是上坡。',
+    '今天摆烂无罪，明天再当卷王。',
+    '就算全世界都在努力，你也可以先歇一会。'
+  ],
+  mid: [
+    '不好不坏的日子，其实最适合偷偷努力。',
+    '平凡的一天，但你不平凡。',
+    '稳住别浪，赢面比你想的大。',
+    '没有惊喜不代表没有进步。',
+    '今天做的小事，未来的你会感谢。',
+    '普通的日子也值得好好过。'
+  ],
+  high: [
+    '运气来了挡都挡不住。但你得先起床。',
+    '命运发了张好牌，别折了。',
+    '今天不冲，更待何时？',
+    '你以为的运气，其实是你值得。',
+    '宇宙说了：今天你配。',
+    '去吧，今天你打什么都是暴击。'
+  ],
+  hidden: [
+    '恭喜，今天你是宇宙的亲儿子/亲闺女。',
+    'SSR已到账，请注意查收。',
+    '今天你打什么都是暴击伤害。',
+    '这种好运，建议截图发朋友圈。',
+    '连锦鲤都在你身后排队。'
+  ]
+};
+
+const MBTI_HINT = {
+  INTJ: '今天你的逻辑依然完美，但记得给人类留点面子。试着说一句「你说得对」——不会死的。',
+  INTP: '放下维基百科，去跟一个真人说话。对方没你想的那么无聊。可能吧。',
+  ENTJ: '今天试试不当霸道总裁。让别人做一次决定，哪怕他们做错了——你忍一下。',
+  ENTP: '今天挑一个立场然后坚持住。是的，就一个。别「但是从另一个角度看」。',
+  INFJ: '别再当人类观察家了。你自己的外卖还没点呢，先把自己安排好。',
+  INFP: '脑子里那个完美世界暂停一下，去完成一件「不完美但真实存在」的事。',
+  ENFJ: '今天别操心全世界了。允许一个人自己摔跤，你不救他，他也不会死的。大概。',
+  ENFP: '请把昨天的灵感做完再产生新的。你备忘录里已经247条「好点子」了。',
+  ISTJ: '今天做一件没有SOP的事。世界不会崩塌。可能还会有点好玩。你试试。',
+  ISFJ: '今天对谁说一次「不」。天不会塌，你也不会变坏人。你太好了，真的。',
+  ESTJ: '今天闭嘴听别人说完。不打断，不纠正，不优化流程。就听。你行的。',
+  ESFJ: '今天把群发的关心收回来，留给自己用。你值得被照顾，不只是照顾别人。',
+  ISTP: '别躲在工具和代码后面了。给在乎的人发条消息，打字就行，不用修电脑。',
+  ISFP: '今天把你觉得「算了不说了」的感受说出来。剧透：它很值得被听见。',
+  ESTP: '做之前想三秒钟。就三秒。对你来说这已经是史诗级成就了。',
+  ESFP: '今天试试一个人待着，不发story，不找人嗨。安静五分钟。五分钟就好。'
+};
+
+/* ============================================================
+   STATE
+============================================================ */
+let selZodiac = null;
+let selMBTI   = null;
+let curScreen  = 's-welcome';
+let tapCount   = 0, tapTimer = null;
+let thrown     = false;
+
+// Press-and-hold state
+let pressing = false;
+let pressStart = 0;
+const MIN_PRESS_MS = 600;
+
+/* ============================================================
+   HELPERS
+============================================================ */
+function today() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// Seeded pseudo-random generator (deterministic by seed)
+function mulberry32(seed) {
+  return function() {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = t + Math.imul(t ^ (t >>> 7), 61 | t) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Get the Monday of the current week (week boundary)
+function getWeekMonday() {
+  const d = new Date();
+  const day = d.getDay(); // 0=Sun, 1=Mon...
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // adjust to Monday
+  const mon = new Date(d.setDate(diff));
+  return `${mon.getFullYear()}-${String(mon.getMonth()+1).padStart(2,'0')}-${String(mon.getDate()).padStart(2,'0')}`;
+}
+
+// Auto-generate weekly zodiac scores
+// Each zodiac gets 7 daily scores per week: one 90s, one 80s, two 70s, three 60s
+// The distribution is shuffled by zodiac+week seed, then day-of-week picks from it
+function getZodiacScores() {
+  const monday = getWeekMonday();
+  const d = new Date();
+  const dow = d.getDay(); // 0=Sun..6=Sat
+  const dayIndex = dow === 0 ? 6 : dow - 1; // Mon=0..Sun=6
+
+  const scores = {};
+  ZODIACS.forEach((z, zi) => {
+    // Create seed from week + zodiac index
+    const seedStr = monday + '_' + zi;
+    let seedNum = 0;
+    for (let i = 0; i < seedStr.length; i++) seedNum = ((seedNum << 5) - seedNum) + seedStr.charCodeAt(i);
+    const rng = mulberry32(Math.abs(seedNum));
+
+    // Base tiers for the week: [90, 80, 70, 70, 60, 60, 60]
+    const bases = [90, 80, 70, 70, 60, 60, 60];
+
+    // Fisher-Yates shuffle with seeded rng
+    for (let i = bases.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [bases[i], bases[j]] = [bases[j], bases[i]];
+    }
+
+    // Add random single digit (0-9) to the base for today
+    const randomDigit = Math.floor(rng() * 1000 + dayIndex * 137) % 10;
+    scores[z] = bases[dayIndex] + randomDigit;
+  });
+
+  return scores;
+}
+
+function getTier(score) {
+  if (score >= 95) return 'hidden';
+  if (score >= 80) return 'diamond';
+  if (score >= 70) return 'gold';
+  if (score >= 60) return 'silver';
+  return 'bronze';
+}
+
+// Date-based deterministic seed (same day = same picks)
+function dateSeed() {
+  const s = today().replace(/-/g, '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h) + s.charCodeAt(i);
+  return Math.abs(h);
+}
+
+function pick(arr) { return arr[dateSeed() % arr.length]; }
+
+function getResultData(tier, score, mbti) {
+  // Description
+  let desc;
+  if (tier === 'diamond') desc = score < 90 ? TIER_DESC.diamond_low : TIER_DESC.diamond_high;
+  else if (tier === 'hidden') desc = TIER_DESC.hidden;
+  else desc = TIER_DESC[tier];
+
+  // 宜/忌
+  const yjKey = tier === 'hidden' ? 'hidden' : tier === 'diamond' ? 'diamond' : tier;
+  const yjSet = pick(YI_JI[yjKey] || YI_JI.gold);
+
+  // 金句
+  let qKey;
+  if (tier === 'hidden') qKey = 'hidden';
+  else if (tier === 'diamond') qKey = 'high';
+  else if (tier === 'gold') qKey = 'mid';
+  else qKey = 'low';
+  const quote = pick(QUOTES[qKey]);
+
+  // MBTI hint (always shown)
+  const mbtiHint = MBTI_HINT[mbti] || '';
+
+  return { desc, yi: yjSet.yi, ji: yjSet.ji, quote, mbtiHint };
+}
+
+/* ============================================================
+   SCREEN MANAGEMENT
+============================================================ */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  curScreen = id;
+  const back = document.getElementById('backBtn');
+  back.style.display = ['s-zodiac','s-mbti','s-jiaobei'].includes(id) ? 'block' : 'none';
+}
+
+function goBack() {
+  if (curScreen === 's-zodiac')   showScreen('s-welcome');
+  if (curScreen === 's-mbti')     showScreen('s-zodiac');
+  if (curScreen === 's-jiaobei')  showScreen('s-mbti');
+}
+
+/* ============================================================
+   FLOW
+============================================================ */
+function startFlow() {
+  // Already threw today?
+  const saved = localStorage.getItem(`result_${today()}`);
+  if (saved) {
+    const d = JSON.parse(saved);
+    selZodiac = d.zodiac; selMBTI = d.mbti;
+    renderResult(d.tier, d.score, d.jiaobei);
+    return;
+  }
+  // Restore previous selections
+  selZodiac = localStorage.getItem('pref_zodiac') || null;
+  selMBTI   = localStorage.getItem('pref_mbti')   || null;
+  refreshZodiacGrid();
+  refreshMBTIGrid();
+  showScreen('s-zodiac');
+}
+
+function goToMBTI() {
+  if (!selZodiac) return;
+  localStorage.setItem('pref_zodiac', selZodiac);
+  showScreen('s-mbti');
+}
+
+function goToJiaobei() {
+  if (!selMBTI) return;
+  localStorage.setItem('pref_mbti', selMBTI);
+  thrown = false;
+  pressing = false;
+  const hint = document.getElementById('jbHint');
+  hint.textContent = '长按珓杯祈愿 · 松手揭晓结果';
+  hint.classList.remove('pressing');
+  hint.style.opacity = '0.85';
+  const name = document.getElementById('jbName');
+  const sub  = document.getElementById('jbSub');
+  name.textContent = '—';
+  name.classList.remove('show');
+  sub.textContent = '';
+  sub.classList.remove('show');
+  document.getElementById('jiaobeiArea').classList.remove('holding', 'throwing', 'settled');
+  const exEl = document.getElementById('jbExplain');
+  if (exEl) { exEl.style.opacity = '1'; exEl.style.transition = 'none'; }
+  showScreen('s-jiaobei');
+}
+
+/* ============================================================
+   GRIDS
+============================================================ */
+function buildGrid(containerId, items, getSelected, onSelect, nextBtnId) {
+  const g = document.getElementById(containerId);
+  g.innerHTML = '';
+  items.forEach(item => {
+    const b = document.createElement('button');
+    b.className = 'sel-item' + (getSelected() === item ? ' selected' : '');
+    b.dataset.val = item;
+    b.textContent = item;
+    b.onclick = () => {
+      onSelect(item);
+      g.querySelectorAll('.sel-item').forEach(el =>
+        el.classList.toggle('selected', el.dataset.val === item));
+      document.getElementById(nextBtnId).disabled = false;
+    };
+    g.appendChild(b);
+  });
+}
+
+function refreshZodiacGrid() {
+  buildGrid('zodiacGrid', ZODIACS, () => selZodiac, v => selZodiac = v, 'zodiacNext');
+  document.getElementById('zodiacNext').disabled = !selZodiac;
+}
+
+function refreshMBTIGrid() {
+  buildGrid('mbtiGrid', MBTIS, () => selMBTI, v => selMBTI = v, 'mbtiNext');
+  document.getElementById('mbtiNext').disabled = !selMBTI;
+}
+
+/* ============================================================
+   JIAOBEI PRESS-AND-HOLD
+============================================================ */
+const jArea = document.getElementById('jiaobeiArea');
+const jHintEl = document.getElementById('jbHint');
+
+function startPress(e) {
+  if (thrown) return;
+  if (pressing) return;
+  if (e.cancelable) e.preventDefault();
+  pressing = true;
+  pressStart = Date.now();
+
+  jArea.classList.add('holding');
+  jHintEl.classList.add('pressing');
+  jHintEl.textContent = '虔诚祈愿中... 松手掷杯';
+}
+
+function endPress(e) {
+  if (!pressing) return;
+  if (e && e.cancelable) e.preventDefault();
+  pressing = false;
+
+  jArea.classList.remove('holding');
+  jHintEl.classList.remove('pressing');
+
+  const duration = Date.now() - pressStart;
+  if (duration < MIN_PRESS_MS) {
+    jHintEl.textContent = '再虔诚一点 · 请长按片刻后松手';
+    setTimeout(() => {
+      if (!thrown) jHintEl.textContent = '长按珓杯祈愿 · 松手揭晓结果';
+    }, 1700);
+    return;
+  }
+  doThrow();
+}
+
+function doThrow() {
+  thrown = true;
+  // 圣杯 50%, 笑杯 25%, 阴杯 25%
+  const roll = Math.random();
+  const result = roll < 0.5 ? JIAOBEI[0] : roll < 0.75 ? JIAOBEI[1] : JIAOBEI[2];
+
+  // Set final rotation to visually match the result:
+  // Jiaobei has 2 sides: flat (阳/light, 0° upright) and curved (阴/dark, 180° flipped)
+  // 圣杯: one flat (0°) + one curved (180°) → one正one反
+  // 笑杯: both flat (0° + 0°) → 两面皆平
+  // 阴杯: both curved (180° + 180°) → 两面皆凸
+  // We add full spins (-720° or +720°) so the animation looks like real spinning before settling
+  let endA, endB;
+  if (result.name === '圣杯') {
+    endA = -720 + 0;       // lands flat (阳面朝上)
+    endB = 720 + 180;      // lands curved (阴面朝上)
+  } else if (result.name === '笑杯') {
+    endA = -720 + 0;       // lands flat
+    endB = 720 + 0;        // lands flat
+  } else { // 阴杯
+    endA = -720 + 180;     // lands curved
+    endB = 720 + 180;      // lands curved
+  }
+
+  jArea.style.setProperty('--end-a', endA + 'deg');
+  jArea.style.setProperty('--end-b', endB + 'deg');
+  jArea.classList.add('throwing');
+
+  // Hide the explanation during throw
+  const explainEl = document.getElementById('jbExplain');
+  explainEl.style.opacity = '0';
+  explainEl.style.transition = 'opacity 0.4s';
+
+  setTimeout(() => {
+    // Animation done — switch to settled state for stable display
+    jArea.classList.remove('throwing');
+    jArea.classList.add('settled');
+
+    const nameEl = document.getElementById('jbName');
+    const subEl  = document.getElementById('jbSub');
+    nameEl.textContent = result.name;
+    subEl.textContent  = result.sub;
+    nameEl.classList.add('show');
+    subEl.classList.add('show');
+    jHintEl.style.opacity = '0';
+
+    setTimeout(() => {
+      const baseScore  = getZodiacScores()[selZodiac] ?? 75;
+      const finalScore = parseFloat((baseScore * result.coeff).toFixed(2));
+      const tier       = getTier(finalScore);
+
+      localStorage.setItem(`result_${today()}`, JSON.stringify({
+        zodiac: selZodiac, mbti: selMBTI,
+        jiaobei: result.name, score: finalScore, tier
+      }));
+
+      renderResult(tier, finalScore, result.name);
+    }, 1500);
+  }, 1600);
+}
+
+// Mouse
+jArea.addEventListener('mousedown', startPress);
+document.addEventListener('mouseup', endPress);
+// Touch
+jArea.addEventListener('touchstart', startPress, { passive: false });
+document.addEventListener('touchend', endPress);
+document.addEventListener('touchcancel', endPress);
+
+/* ============================================================
+   RESULT RENDER
+============================================================ */
+// Store result data for sharing
+let lastResultData = null;
+
+function renderResult(tier, score, jiaobeiName) {
+  showScreen('s-result');
+  const info = TIER_INFO[tier];
+  const data = getResultData(tier, score, selMBTI);
+
+  // Save for share
+  lastResultData = { tier, info, data, zodiac: selZodiac, mbti: selMBTI, jiaobei: jiaobeiName };
+
+  document.body.className = info.cls;
+
+  const sparkles = tier === 'hidden'
+    ? `<div class="sparkle-wrap">
+         <span class="sp" style="top:14px;left:20px">✦</span>
+         <span class="sp" style="top:24px;right:26px">✧</span>
+         <span class="sp" style="bottom:22px;left:38px">✦</span>
+         <span class="sp" style="bottom:30px;right:30px">✧</span>
+       </div>`
+    : '';
+
+  document.getElementById('resultContent').innerHTML = `
+    <div class="info-chips">
+      <span class="chip">${selZodiac}</span>
+      <span class="chip">${selMBTI}</span>
+      <span class="chip">${jiaobeiName}</span>
+    </div>
+    <div class="result-card">
+      ${sparkles}
+      <div class="tier-name">${info.name}</div>
+      <div class="tier-en">${info.en}</div>
+      <div class="divider"></div>
+      <div class="desc-text">${data.desc}</div>
+
+      <div class="yi-ji">
+        <div class="yj-row yj-yi">
+          <span class="yj-tag">宜</span>
+          <span class="yj-text">${data.yi.join(' / ')}</span>
+        </div>
+        <div class="yj-row yj-ji">
+          <span class="yj-tag">忌</span>
+          <span class="yj-text">${data.ji.join(' / ')}</span>
+        </div>
+      </div>
+
+      <div class="mbti-box">
+        <div class="mbti-label">${selMBTI} 专属提醒</div>
+        ${data.mbtiHint}
+      </div>
+
+      <div class="fortune-quote">「${data.quote}」</div>
+
+      <div class="result-note">今日运势已定 · 明日重新开启</div>
+    </div>
+    <button class="share-btn" id="shareBtn" onclick="shareResult()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      分享给朋友
+    </button>
+  `;
+}
+
+function shareResult() {
+  if (!lastResultData) return;
+  const d = lastResultData;
+  const text = [
+    `🔮 今日运势：${d.info.name} ${d.info.en.split('  ')[0]}`,
+    `🪐 ${d.zodiac} · ${d.mbti} · ${d.jiaobei}`,
+    `✅ 宜：${d.data.yi.join(' / ')}`,
+    `❌ 忌：${d.data.ji.join(' / ')}`,
+    `💬「${d.data.quote}」`,
+    '',
+    `🧠 ${d.mbti}专属：${d.data.mbtiHint}`
+  ].join('\n');
+
+  if (navigator.share) {
+    navigator.share({ title: '今日运势', text }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById('shareBtn');
+      btn.classList.add('copied');
+      btn.innerHTML = '✓ 已复制到剪贴板';
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>分享给朋友`;
+      }, 2200);
+    });
+  }
+}
+
+/* Admin removed: scores are now auto-generated weekly */
+
+/* ============================================================
+   STARS BACKGROUND
+============================================================ */
+(function () {
+  const cv = document.getElementById('starsCanvas');
+  const cx = cv.getContext('2d');
+  let stars = [], W, H;
+  const colorPool = [
+    '255,255,255',
+    '220,200,255',
+    '255,220,240',
+    '200,230,255',
+    '255,240,200'
+  ];
+
+  function resize() {
+    W = cv.width  = window.innerWidth;
+    H = cv.height = window.innerHeight;
+  }
+
+  function seed() {
+    stars = Array.from({length: 180}, () => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: Math.random() * 1.3 + 0.3,
+      a: Math.random() * 0.7 + 0.2,
+      s: Math.random() * 0.45 + 0.2,
+      p: Math.random() * Math.PI * 2,
+      c: colorPool[Math.floor(Math.random() * colorPool.length)]
+    }));
+  }
+
+  let t = 0;
+  function draw() {
+    cx.clearRect(0, 0, W, H);
+    t += 0.012;
+    stars.forEach(s => {
+      const op = s.a * (0.55 + 0.45 * Math.sin(t * s.s + s.p));
+      cx.beginPath();
+      cx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      cx.fillStyle = `rgba(${s.c},${op})`;
+      cx.fill();
+    });
+    requestAnimationFrame(draw);
+  }
+
+  resize(); seed(); draw();
+  window.addEventListener('resize', () => { resize(); seed(); });
+})();
+
+/* ============================================================
+   INIT GRIDS
+============================================================ */
+refreshZodiacGrid();
+refreshMBTIGrid();
+</script>
+</body>
+</html>
